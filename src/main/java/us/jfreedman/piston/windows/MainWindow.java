@@ -11,6 +11,7 @@ import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -58,30 +59,37 @@ public class MainWindow extends JFrame {
         contentWrapper.setSize(580, 540);
         this.add(contentWrapper);
 
-        try {
-            downloadToCache(new URL("http://files.minecraftforge.net/maven/org/spongepowered/spongeforge/1.8-1577-3.0.0-BETA-1000/spongeforge-1.8-1577-3.0.0-BETA-1000.jar"));
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        }
+        downloadToCache("org/spongepowered/spongeforge/1.8-1577-3.0.0-BETA-1000/spongeforge-1.8-1577-3.0.0-BETA-1000.jar");
     }
 
-    public void downloadToCache(URL... fileToDownload) {
-        ArrayList<URL> downloads = new ArrayList<>();
+    public void downloadToCache(String... fileToDownload) {
+        ArrayList<String> downloads = new ArrayList<>();
         Collections.addAll(downloads, fileToDownload);
 
 
-        downloads.parallelStream().forEach(url -> {
-            try {
-                ReadableByteChannel rbc = Channels.newChannel(url.openStream());
-                File downloadFile = new File(CACHE_FOLDER, url.getPath());
-                downloadFile.getParentFile().mkdirs();
-                FileOutputStream fos = new FileOutputStream(downloadFile);
-                fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-                fos.close();
-                rbc.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        new Thread(() -> {
+            downloads.parallelStream().forEach(string -> {
+                try {
+                    URL url = new URL("http://files.minecraftforge.net/maven/" + string);
+                    ReadableByteChannel rbc = Channels.newChannel(url.openStream());
+                    File downloadFile = new File(CACHE_FOLDER, string);
+
+                    downloadFile.getParentFile().mkdirs();
+                    FileOutputStream fos = new FileOutputStream(downloadFile);
+                    fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+                    fos.close();
+                    rbc.close();
+                    synchronized (content) {
+                        DefaultTreeModel model = (DefaultTreeModel) content.getModel();
+                        DefaultMutableTreeNode root = (DefaultMutableTreeNode) model.getRoot();
+                        root.add(new DefaultMutableTreeNode(downloadFile.getName()));
+                        model.reload(root);
+
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }).start();
     }
 }
